@@ -42,6 +42,8 @@ export async function crawl(baseUrl, domain, maxDepth = 2) {
 
     let html;
     try {
+      // Only request URLs on the validated domain to prevent SSRF
+      if (!isSameDomain(url, domain)) continue;
       const response = await axios.get(url, {
         timeout: 10000,
         maxRedirects: 5,

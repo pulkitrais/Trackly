@@ -3,7 +3,20 @@ import xml2js from 'xml2js';
 
 const parser = new xml2js.Parser();
 
-async function fetchXml(url) {
+function isSameDomainUrl(url, baseUrl) {
+  try {
+    const base = new URL(baseUrl);
+    const target = new URL(url);
+    return target.hostname === base.hostname || target.hostname.endsWith(`.${base.hostname}`);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchXml(url, allowedBaseUrl) {
+  if (allowedBaseUrl && !isSameDomainUrl(url, allowedBaseUrl)) {
+    throw new Error(`Blocked off-domain sitemap fetch: ${url}`);
+  }
   const response = await axios.get(url, {
     timeout: 10000,
     headers: { 'User-Agent': 'Trackly/1.0' },
@@ -12,7 +25,7 @@ async function fetchXml(url) {
   return response.data;
 }
 
-async function parseSitemapXml(xmlStr, depth = 0) {
+async function parseSitemapXml(xmlStr, depth = 0, allowedBaseUrl = null) {
   if (depth > 3) return [];
   const results = [];
 
@@ -30,8 +43,8 @@ async function parseSitemapXml(xmlStr, depth = 0) {
       const loc = sm.loc && sm.loc[0];
       if (!loc) continue;
       try {
-        const xml = await fetchXml(loc);
-        const nested = await parseSitemapXml(xml, depth + 1);
+        const xml = await fetchXml(loc, allowedBaseUrl);
+        const nested = await parseSitemapXml(xml, depth + 1, allowedBaseUrl);
         results.push(...nested);
       } catch {
         // skip failed nested sitemaps
@@ -58,8 +71,8 @@ export async function parseSitemap(baseUrl) {
 
   for (const url of candidates) {
     try {
-      const xml = await fetchXml(url);
-      const entries = await parseSitemapXml(xml);
+      const xml = await fetchXml(url, baseUrl);
+      const entries = await parseSitemapXml(xml, 0, baseUrl);
       results.push(...entries);
     } catch {
       // continue to next candidate
