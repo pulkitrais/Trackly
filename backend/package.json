@@ -1,0 +1,18 @@
+{
+  "name": "trackly-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "p-limit": "^5.0.0",
+    "uuid": "^11.1.1",
+    "xml2js": "^0.6.2"
+  }
+}
