@@ -1,9 +1,15 @@
+export interface RedirectHop {
+  url: string;
+  status: number;
+}
+
 export interface ScanResult {
   url: string;
   status: number | null;
   responseTime: number;
   source: string;
   error?: string;
+  redirectChain?: RedirectHop[];
 }
 
 export interface ScanState {
