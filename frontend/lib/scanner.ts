@@ -32,22 +32,46 @@ function deduplicateUrls(
   return unique;
 }
 
+const MAX_REDIRECT_HOPS = 10;
+
 export async function checkUrl(url: string, retries = 2): Promise<ScanResult> {
   const start = Date.now();
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const chain: Array<{ url: string; status: number }> = [];
+    let currentUrl = url;
     try {
-      const response = await axios.get(url, {
-        timeout: 8000,
-        maxRedirects: 5,
-        validateStatus: () => true,
-        headers: { 'User-Agent': 'Trackly/1.0' },
-      });
+      let hops = 0;
+      while (hops < MAX_REDIRECT_HOPS) {
+        const response = await axios.get(currentUrl, {
+          timeout: 8000,
+          maxRedirects: 0,
+          validateStatus: () => true,
+          headers: { 'User-Agent': 'Trackly/1.0' },
+        });
+        chain.push({ url: currentUrl, status: response.status });
+
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers['location'];
+          if (!location) break;
+          try {
+            currentUrl = new URL(location, currentUrl).href;
+          } catch {
+            break;
+          }
+          hops++;
+        } else {
+          break;
+        }
+      }
+
+      const lastHop = chain[chain.length - 1];
       const responseTime = Date.now() - start;
       return {
         url,
-        status: response.status,
+        status: lastHop ? lastHop.status : null,
         responseTime,
         source: '', // will be set by caller
+        redirectChain: chain.length > 1 ? chain : undefined,
       };
     } catch (err: unknown) {
       if (attempt === retries) {
@@ -58,6 +82,7 @@ export async function checkUrl(url: string, retries = 2): Promise<ScanResult> {
           responseTime: Date.now() - start,
           source: '',
           error: e.code || e.message,
+          redirectChain: chain.length > 1 ? chain : undefined,
         };
       }
       await new Promise((r) => setTimeout(r, 200));

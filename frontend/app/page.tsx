@@ -2,12 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+interface RedirectHop {
+  url: string;
+  status: number;
+}
+
 interface ScanResult {
   url: string;
   status: number | null;
   responseTime: number;
   source: string;
   error?: string;
+  redirectChain?: RedirectHop[];
 }
 
 interface ScanState {
@@ -57,6 +63,7 @@ export default function Home() {
   const [sortField, setSortField] = useState<keyof ScanResult>('url');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = useState('');
+  const [expandedChains, setExpandedChains] = useState<Set<number>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -138,6 +145,7 @@ export default function Home() {
     setInputError('');
     setLoading(false);
     setFilterText('');
+    setExpandedChains(new Set());
   };
 
   const handleExport = (format: 'csv' | 'json') => {
@@ -172,8 +180,20 @@ export default function Home() {
   });
 
   const active = results.filter((r) => r.status !== null && r.status >= 200 && r.status < 300).length;
-  const redirects = results.filter((r) => r.status !== null && r.status >= 300 && r.status < 400).length;
+  const redirects = results.filter((r) => r.redirectChain && r.redirectChain.length > 1).length;
   const errors = results.filter((r) => r.status === null || r.status >= 400).length;
+
+  const toggleChain = (index: number) => {
+    setExpandedChains((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
 
   const SortIcon = ({ field }: { field: keyof ScanResult }) => {
     if (sortField !== field) return <span className="ml-1 opacity-30">↕</span>;
@@ -343,49 +363,101 @@ export default function Home() {
                       >
                         Source <SortIcon field="source" />
                       </th>
+                      <th className="text-left px-4 py-3 font-medium w-32">
+                        Redirect Path
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {sorted.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#999' }}>
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#999' }}>
                           No results found.
                         </td>
                       </tr>
                     )}
                     {sorted.map((r, i) => (
-                      <tr
-                        key={i}
-                        style={{ borderTop: i > 0 ? '1px solid #f0f0f0' : undefined }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#fafafa')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}
-                      >
-                        <td className="px-4 py-2.5 font-mono text-xs break-all">
-                          <a
-                            href={r.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                            style={{ color: '#000' }}
-                          >
-                            {r.url}
-                          </a>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <StatusBadge status={r.status} />
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-xs" style={{ color: '#555' }}>
-                          {r.responseTime != null ? `${r.responseTime}ms` : '—'}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span
-                            className="inline-block px-2 py-0.5 text-xs rounded font-mono"
-                            style={{ background: '#f5f5f5', color: '#333' }}
-                          >
-                            {r.source ?? '—'}
-                          </span>
-                        </td>
-                      </tr>
+                      <>
+                        <tr
+                          key={`row-${i}`}
+                          style={{ borderTop: i > 0 ? '1px solid #f0f0f0' : undefined }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#fafafa')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                        >
+                          <td className="px-4 py-2.5 font-mono text-xs break-all">
+                            <a
+                              href={r.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline"
+                              style={{ color: '#000' }}
+                            >
+                              {r.url}
+                            </a>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <StatusBadge status={r.status} />
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-xs" style={{ color: '#555' }}>
+                            {r.responseTime != null ? `${r.responseTime}ms` : '—'}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span
+                              className="inline-block px-2 py-0.5 text-xs rounded font-mono"
+                              style={{ background: '#f5f5f5', color: '#333' }}
+                            >
+                              {r.source ?? '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {r.redirectChain && r.redirectChain.length > 1 ? (
+                              <button
+                                onClick={() => toggleChain(i)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded font-mono"
+                                style={{ background: '#fff3cd', color: '#856404', border: '1px solid #ffc107', cursor: 'pointer' }}
+                              >
+                                {expandedChains.has(i) ? '▾' : '▸'} {r.redirectChain.length} hops
+                              </button>
+                            ) : (
+                              <span className="text-xs" style={{ color: '#ccc' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {r.redirectChain && r.redirectChain.length > 1 && expandedChains.has(i) && (
+                          <tr key={`chain-${i}`} style={{ background: '#fffdf0', borderTop: '1px solid #f0f0f0' }}>
+                            <td colSpan={5} className="px-6 py-3">
+                              <p className="text-xs font-medium mb-2" style={{ color: '#555' }}>Redirect Path</p>
+                              <ol className="space-y-1">
+                                {r.redirectChain.map((hop, hi) => (
+                                  <li key={hi} className="flex items-start gap-2 font-mono text-xs">
+                                    <span
+                                      className="shrink-0 mt-0.5 inline-block px-1.5 py-0.5 rounded text-xs"
+                                      style={{
+                                        background: hop.status >= 200 && hop.status < 300 ? '#000' : hop.status >= 300 && hop.status < 400 ? '#555' : '#e5e5e5',
+                                        color: hop.status >= 200 && hop.status < 300 ? '#fff' : hop.status >= 300 && hop.status < 400 ? '#fff' : '#000',
+                                      }}
+                                    >
+                                      {hop.status}
+                                    </span>
+                                    <a
+                                      href={hop.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="break-all hover:underline"
+                                      style={{ color: '#000' }}
+                                    >
+                                      {hop.url}
+                                    </a>
+                                    {hi < r.redirectChain!.length - 1 && (
+                                      <span className="shrink-0" style={{ color: '#999' }}>↓</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ol>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))}
                   </tbody>
                 </table>
