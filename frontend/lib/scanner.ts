@@ -34,6 +34,9 @@ function deduplicateUrls(
 
 const MAX_REDIRECT_HOPS = 10;
 
+// Redirects are followed manually (maxRedirects: 0) so that every hop is
+// recorded in the chain. Native axios redirect-following would silently
+// consume the intermediate 3xx responses and only return the final result.
 export async function checkUrl(url: string, retries = 2): Promise<ScanResult> {
   const start = Date.now();
   for (let attempt = 0; attempt <= retries; attempt++) {
