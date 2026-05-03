@@ -1,11 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-interface RedirectHop {
-  url: string;
-  status: number;
-}
+import type { RedirectHop } from '@/lib/store';
 
 interface ScanResult {
   url: string;

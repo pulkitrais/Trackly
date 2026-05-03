@@ -4,7 +4,7 @@ import { crawl } from './crawler';
 import { getWordlistPaths } from './wordlist';
 import { fetchWaybackUrls } from './wayback';
 import { parseSitemap } from './sitemap';
-import type { ScanResult, ScanState } from './store';
+import type { ScanResult, ScanState, RedirectHop } from './store';
 
 function normalizeUrlKey(url: string): string {
   try {
@@ -37,7 +37,7 @@ const MAX_REDIRECT_HOPS = 10;
 export async function checkUrl(url: string, retries = 2): Promise<ScanResult> {
   const start = Date.now();
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const chain: Array<{ url: string; status: number }> = [];
+    const chain: RedirectHop[] = [];
     let currentUrl = url;
     try {
       let hops = 0;
@@ -82,7 +82,7 @@ export async function checkUrl(url: string, retries = 2): Promise<ScanResult> {
           responseTime: Date.now() - start,
           source: '',
           error: e.code || e.message,
-          redirectChain: chain.length > 1 ? chain : undefined,
+          redirectChain: chain.length > 0 ? chain : undefined,
         };
       }
       await new Promise((r) => setTimeout(r, 200));
