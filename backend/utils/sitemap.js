@@ -3,21 +3,26 @@ import xml2js from 'xml2js';
 
 const parser = new xml2js.Parser();
 
-function isSameDomainUrl(url, baseUrl) {
-  try {
-    const base = new URL(baseUrl);
-    const target = new URL(url);
-    return target.hostname === base.hostname || target.hostname.endsWith(`.${base.hostname}`);
-  } catch {
-    return false;
-  }
-}
-
 async function fetchXml(url, allowedBaseUrl) {
-  if (allowedBaseUrl && !isSameDomainUrl(url, allowedBaseUrl)) {
-    throw new Error(`Blocked off-domain sitemap fetch: ${url}`);
+  // Parse and validate the URL before fetching to prevent SSRF.
+  // Only allow requests to the same hostname as the original target.
+  let parsedTarget;
+  try {
+    parsedTarget = new URL(url);
+  } catch {
+    throw new Error(`Invalid sitemap URL: ${url}`);
   }
-  const response = await axios.get(url, {
+  if (allowedBaseUrl) {
+    const parsedBase = new URL(allowedBaseUrl);
+    const targetHost = parsedTarget.hostname;
+    const baseHost = parsedBase.hostname;
+    if (targetHost !== baseHost && !targetHost.endsWith(`.${baseHost}`)) {
+      throw new Error(`Blocked off-domain sitemap fetch: ${url}`);
+    }
+  }
+  // Use the reconstructed href from the parsed URL object
+  const safeUrl = parsedTarget.href;
+  const response = await axios.get(safeUrl, {
     timeout: 10000,
     headers: { 'User-Agent': 'Trackly/1.0' },
     validateStatus: (s) => s < 400,

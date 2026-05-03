@@ -42,12 +42,22 @@ export async function crawl(baseUrl, domain, maxDepth = 2) {
 
     let html;
     try {
-      // Only request URLs on the validated domain to prevent SSRF
-      if (!isSameDomain(url, domain)) continue;
-      const response = await axios.get(url, {
+      // Only request URLs on the validated domain to prevent SSRF.
+      // Parse the URL and verify the hostname before fetching.
+      let parsedFetchUrl;
+      try {
+        parsedFetchUrl = new URL(url);
+      } catch {
+        continue;
+      }
+      const hostname = parsedFetchUrl.hostname;
+      if (hostname !== domain && !hostname.endsWith(`.${domain}`)) continue;
+      // Reconstruct from parsed URL object to avoid raw user-input string going to axios
+      const safeUrl = parsedFetchUrl.href;
+      const response = await axios.get(safeUrl, {
         timeout: 10000,
         maxRedirects: 5,
-        headers: { 'User-Agent': 'Trackly/1.0 (+https://github.com/trackly)' },
+        headers: { 'User-Agent': 'Trackly/1.0' },
         validateStatus: () => true,
       });
       html = response.data;
