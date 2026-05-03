@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
 
-  const scan_id = uuidv4();
-  scans.set(scan_id, {
-    id: scan_id,
+  const scanId = uuidv4();
+  scans.set(scanId, {
+    id: scanId,
     domain: normalized.domain,
     status: 'pending',
     progress: 0,
@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
   });
 
   waitUntil(
-    runScan(scan_id, normalized.domain, normalized.baseUrl, scans).catch((err: Error) => {
-      const scan = scans.get(scan_id);
+    runScan(scanId, normalized.domain, normalized.baseUrl, scans).catch((err: Error) => {
+      const scan = scans.get(scanId);
       if (scan) {
         scan.status = 'error';
         scan.error = err.message;
@@ -48,5 +48,5 @@ export async function POST(req: NextRequest) {
     })
   );
 
-  return NextResponse.json({ scan_id });
+  return NextResponse.json({ scan_id: scanId });
 }
